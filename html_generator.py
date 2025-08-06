@@ -278,7 +278,7 @@ class HTMLGenerator:
     
     def generate_newsletter_html(self, blocks: List[str], subject: str = None, llm_helper: LLMHelper = None, custom_summary: str = None) -> str:
         """Combine all blocks into a complete newsletter HTML"""
-        html_parts = ['<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">']
+        html_parts = ['<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; width: 100%; box-sizing: border-box; text-align: left;">']
         
         for block in blocks:
             if block.strip():
@@ -297,7 +297,7 @@ class HTMLGenerator:
         </div>
         '''
             # Insert summary after the title but before the content
-            html_parts = ['<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">']
+            html_parts = ['<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; width: 100%; box-sizing: border-box; text-align: left;">']
             if subject:
                 html_parts.append(f'<h1>{subject}</h1>')
             html_parts.append(summary_html)
@@ -319,7 +319,7 @@ class HTMLGenerator:
         </div>
         '''
                     # Insert summary after the title but before the content
-                    html_parts = ['<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">']
+                    html_parts = ['<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; width: 100%; box-sizing: border-box; text-align: left;">']
                     if subject:
                         html_parts.append(f'<h1>{subject}</h1>')
                     html_parts.append(summary_html)
