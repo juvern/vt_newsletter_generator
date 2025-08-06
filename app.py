@@ -1,5 +1,7 @@
 import streamlit as st
 import pandas as pd
+import os
+import sys
 from csv_processor import CSVProcessor
 from html_generator import HTMLGenerator
 from llm_helper import LLMHelper
@@ -17,14 +19,18 @@ st.set_page_config(
 
 # Initialize components
 @st.cache_resource
-def init_components():
+def init_components(test_mode: bool = False):
     """Initialize all components once"""
     csv_processor = CSVProcessor()
     url_generator = ClubSparkURLGenerator()
     
-    # Get API key from Streamlit secrets
-    api_key = st.secrets.get("openai_api_key", None)
-    llm_helper = LLMHelper(api_key=api_key)
+    if test_mode:
+        # In test mode, pass None as API key to disable LLM calls
+        llm_helper = LLMHelper(api_key=None)
+    else:
+        # Get API key from Streamlit secrets
+        api_key = st.secrets.get("openai_api_key", None)
+        llm_helper = LLMHelper(api_key=api_key)
     
     html_generator = HTMLGenerator(llm_helper=llm_helper)
     return csv_processor, url_generator, llm_helper, html_generator
@@ -37,8 +43,17 @@ def main():
     if not check_password():
         st.stop()
     
-    # Initialize components
-    csv_processor, url_generator, llm_helper, html_generator = init_components()
+    # Check if test mode is enabled via environment variable or command line
+    test_mode = (
+        os.getenv('TEST_MODE', 'false').lower() == 'true' or
+        '--test' in sys.argv
+    )
+    
+    if test_mode:
+        st.sidebar.info("🧪 Test mode enabled - Using fallback values instead of LLM")
+    
+    # Initialize components with test mode parameter
+    csv_processor, url_generator, llm_helper, html_generator = init_components(test_mode=test_mode)
     
     # Main app flow
     app_flow(csv_processor, url_generator, html_generator, llm_helper)
@@ -393,7 +408,7 @@ def app_flow(csv_processor, url_generator, html_generator, llm_helper):
                         st.subheader("📋 Results")
                         
                         # Tabs for different outputs
-                        tab1, tab2, tab3 = st.tabs(["📄 Newsletter Preview", "📋 JSON Output", "📱 WhatsApp Message"])
+                        tab1, tab2 = st.tabs(["📄 Newsletter Preview", "📋 JSON Output"])
                         
                         with tab1:
                             st.markdown("**Newsletter Preview:**")
@@ -403,11 +418,15 @@ def app_flow(csv_processor, url_generator, html_generator, llm_helper):
                             st.markdown("**Copy this JSON for Postman:**")
                             json_str = json.dumps(newsletter_json, indent=2)
                             st.code(json_str, language="json")
-                            
                         
-                        with tab3:
-                            st.markdown("**WhatsApp Message:**")
-                            st.info("WhatsApp message generation has been removed from this version.")
+                        # Contact list reminder
+                        st.subheader("📋 Next Steps")
+                        st.info("""
+                        📞 **Don't forget to import ClubSpark's contact list!**
+                        
+                        After copying the JSON to Postman, download the contact list from ClubSpark to import into Kit before sending. This ensures we're sending to all our members.
+                        """)
+                        
     
     
     else:

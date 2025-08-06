@@ -53,12 +53,13 @@ class HTMLGenerator:
         duration = course.get('Duration Text', '')
         spots = course.get('Active Participants', 0)
         
-        limited_spots = " <strong>(Limited spots!)</strong>" if spots > 8 else ""
+        limited_spots = " <strong>(Limited spots!)</strong>" if spots >= 7 and spots < 10 else ""
+        full_spots = " <strong>(Full!)</strong>" if spots >= 10 else ""
         
         if include_venue:
-            return f'<li><strong>{venue}</strong> - starting {start_date} at {time} ({duration}){limited_spots}</li>'
+            return f'<li><strong>{venue}</strong> - starting {start_date} at {time} ({duration}){limited_spots}{full_spots}</li>'
         else:
-            return f'<li>{start_date} at {time} ({duration}){limited_spots}</li>'
+            return f'<li>{start_date} at {time} ({duration}){limited_spots}{full_spots}</li>'
     
     def _generate_course_list(self, courses: pd.DataFrame, group_by: str = None, include_venue: bool = True) -> List[str]:
         """Generate HTML list items for courses with optional grouping"""
@@ -129,13 +130,13 @@ class HTMLGenerator:
         
         html_parts = [f'<h2>{config["title"]}</h2>']
         
-        # Add LLM-generated description if available
-        if self.llm_helper:
-            try:
-                description = self.llm_helper.generate_block_description(block_type)
-                html_parts.append(f'<p>{description}</p>')
-            except Exception as e:
-                print(f"LLM description failed: {e}")
+        # # Add LLM-generated description if available
+        # if self.llm_helper:
+        #     try:
+        #         description = self.llm_helper.generate_block_description(block_type)
+        #         html_parts.append(f'<p>{description}</p>')
+        #     except Exception as e:
+        #         print(f"LLM description failed: {e}")
         
         # Add extra content (like junior age groups explanation)
         if config['extra_content']:
