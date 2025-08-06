@@ -49,9 +49,6 @@ def main():
         '--test' in sys.argv
     )
     
-    if test_mode:
-        st.sidebar.info("🧪 Test mode enabled - Using fallback values instead of LLM")
-    
     # Initialize components with test mode parameter
     csv_processor, url_generator, llm_helper, html_generator = init_components(test_mode=test_mode)
     
