@@ -305,8 +305,6 @@ class HTMLGenerator:
                 '<div style="width: 100%; display: flex; justify-content: center; align-items: flex-start;">',
                 '<div style="font-family: Arial, sans-serif; max-width: 600px; width: 100%; box-sizing: border-box; text-align: left; padding: 0 20px;">'
             ]
-            if subject:
-                html_parts.append(f'<h1>{subject}</h1>')
             html_parts.append(summary_html)
             
             for block in blocks:
