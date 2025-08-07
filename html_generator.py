@@ -278,13 +278,17 @@ class HTMLGenerator:
     
     def generate_newsletter_html(self, blocks: List[str], subject: str = None, llm_helper: LLMHelper = None, custom_summary: str = None) -> str:
         """Combine all blocks into a complete newsletter HTML"""
-        html_parts = ['<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; width: 100%; box-sizing: border-box; text-align: left;">']
+        html_parts = [
+            '<div style="width: 100%; display: flex; justify-content: center; align-items: flex-start;">',
+            '<div style="font-family: Arial, sans-serif; max-width: 600px; width: 100%; box-sizing: border-box; text-align: left; padding: 0 20px;">'
+        ]
         
         for block in blocks:
             if block.strip():
                 html_parts.append(block)
         
-        html_parts.append('</div>')
+        html_parts.append('</div>')  # Close inner div
+        html_parts.append('</div>')  # Close outer flex div
         
         # Generate the complete HTML first
         complete_html = '\n'.join(html_parts)
@@ -297,7 +301,10 @@ class HTMLGenerator:
         </div>
         '''
             # Insert summary after the title but before the content
-            html_parts = ['<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; width: 100%; box-sizing: border-box; text-align: left;">']
+            html_parts = [
+                '<div style="width: 100%; display: flex; justify-content: center; align-items: flex-start;">',
+                '<div style="font-family: Arial, sans-serif; max-width: 600px; width: 100%; box-sizing: border-box; text-align: left; padding: 0 20px;">'
+            ]
             if subject:
                 html_parts.append(f'<h1>{subject}</h1>')
             html_parts.append(summary_html)
@@ -306,7 +313,8 @@ class HTMLGenerator:
                 if block.strip():
                     html_parts.append(block)
             
-            html_parts.append('</div>')
+            html_parts.append('</div>')  # Close inner div
+            html_parts.append('</div>')  # Close outer flex div
             complete_html = '\n'.join(html_parts)
         # Add summary at the top if LLM helper is available (fallback)
         elif llm_helper:

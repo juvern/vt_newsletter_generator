@@ -6,7 +6,8 @@ from csv_processor import CSVProcessor
 from html_generator import HTMLGenerator
 from llm_helper import LLMHelper
 from url_generator import ClubSparkURLGenerator
-from auth import check_password
+# from auth import check_password
+
 import json
 from typing import List, Dict, Any
 
@@ -39,9 +40,9 @@ def main():
     st.title("🎾 Vamos Tennis Newsletter Generator")
     st.markdown("Generate HTML newsletters to copy and paste into Postman")
     
-    # Check password first
-    if not check_password():
-        st.stop()
+    # Check password first (commented out for now)
+    # if not check_password():
+    #     st.stop()
     
     # Check if test mode is enabled via environment variable or command line
     test_mode = (
@@ -174,17 +175,24 @@ def app_flow(csv_processor, url_generator, html_generator, llm_helper):
             
             st.session_state.content_order = default_order
         else:
-            # Update content order to include all current events
-            # Keep existing course order
-            course_order = [item for item in st.session_state.content_order if not item.startswith('event_')]
+            # Only update if there are new events that aren't already in the order
+            # Preserve the existing order and only add new events at the end
+            existing_order = st.session_state.content_order.copy()
+            existing_event_ids = [item for item in existing_order if item.startswith('event_')]
+            current_event_ids = [event['id'] for event in events]
             
-            # Add all current events to the end
+            # Remove events that are no longer present
+            updated_order = [item for item in existing_order if not item.startswith('event_') or item in current_event_ids]
+            
+            # Add new events that aren't already in the order
             for event in events:
-                event_key = event['id']  # Use the ID directly since it's already formatted
-                if event_key not in course_order:
-                    course_order.append(event_key)
+                event_key = event['id']
+                if event_key not in updated_order:
+                    updated_order.append(event_key)
             
-            st.session_state.content_order = course_order
+            # Only update session state if the order actually changed
+            if updated_order != existing_order:
+                st.session_state.content_order = updated_order
         
         # Display all content with reordering controls
         st.markdown("**Drag and drop or use Move Up/Down to reorder content:**")
