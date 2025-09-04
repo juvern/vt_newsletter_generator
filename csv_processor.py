@@ -120,7 +120,7 @@ class CSVProcessor:
             else:
                 date_obj = datetime.strptime(date_str, '%Y-%m-%d')
             
-            return date_obj.strftime('%d %B %Y')
+            return date_obj.strftime('%d %b %Y')
         except:
             return date_str
     

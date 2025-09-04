@@ -48,18 +48,20 @@ class HTMLGenerator:
     def _format_course_item(self, course: pd.Series, include_venue: bool = True) -> str:
         """Format a single course as HTML list item"""
         venue = course.get('Venue', 'Unknown Venue')
-        start_date = course.get('Formatted Start Date', course.get('Start Date', ''))
+        day = course.get('Day', '')
         time = self._format_time(course.get('Time', ''))
         duration = course.get('Duration Text', '')
+        start_date = self._format_short_date(course.get('Formatted Start Date', course.get('Start Date', '')))
         spots = course.get('Active Participants', 0)
         
         limited_spots = " <strong>(Limited spots!)</strong>" if spots >= 7 and spots < 10 else ""
         full_spots = " <strong>(Full!)</strong>" if spots >= 10 else ""
         
+        # Format: "Monday 5pm @ Dulwich Park — 4 weeks starting 4 Aug"
         if include_venue:
-            return f'<li><strong>{venue}</strong> - starting {start_date} at {time} ({duration}){limited_spots}{full_spots}</li>'
+            return f'<li>{day} {time} @ {venue} — {duration} starting {start_date}{limited_spots}{full_spots}</li>'
         else:
-            return f'<li>{start_date} at {time} ({duration}){limited_spots}{full_spots}</li>'
+            return f'<li>{day} {time} — {duration} starting {start_date}{limited_spots}{full_spots}</li>'
     
     def _generate_course_list(self, courses: pd.DataFrame, group_by: str = None, include_venue: bool = True) -> List[str]:
         """Generate HTML list items for courses with optional grouping"""
@@ -167,12 +169,12 @@ class HTMLGenerator:
                 '</ul>'
             ]
         
-        # Use course names directly from CSV
+        # Use formatted course names
         course_names = []
         for _, course in courses.iterrows():
-            course_name = course.get('Name', '')  # Use 'Name' column from CSV
-            if course_name:
-                course_names.append(course_name)
+            formatted_name = self._format_junior_course_name(course)
+            if formatted_name:
+                course_names.append(formatted_name)
         
         if not course_names:
             # Fallback to static descriptions
@@ -264,17 +266,63 @@ class HTMLGenerator:
             if ':' in time_str:
                 hour, minute = time_str.split(':')
                 hour = int(hour)
+                minute = int(minute)
+                
+                # Format minute part - only show :MM if minutes != 00
+                minute_str = f":{minute:02d}" if minute != 0 else ""
+                
                 if hour > 12:
-                    return f"{hour-12}pm"
+                    return f"{hour-12}{minute_str}pm"
                 elif hour == 12:
-                    return "12pm"
+                    return f"12{minute_str}pm"
                 elif hour == 0:
-                    return "12am"
+                    return f"12{minute_str}am"
                 else:
-                    return f"{hour}am"
+                    return f"{hour}{minute_str}am"
             return time_str
         except:
             return time_str
+    
+    def _format_short_date(self, date_str: str) -> str:
+        """Format date to short format like '4 Aug'"""
+        try:
+            # Parse the formatted date string "27 Jul 2025" 
+            if ' ' in date_str and len(date_str.split(' ')) == 3:
+                day, month, year = date_str.split(' ')
+                return f"{int(day)} {month}"
+            return date_str
+        except:
+            return date_str
+    
+    def _format_junior_course_name(self, course: pd.Series) -> str:
+        """Format junior course name to 'Blue (ages 4-6) Saturday 8.45am @ Dulwich Park'"""
+        try:
+            course_name = course.get('Name', '')
+            day = course.get('Day', '')
+            time = self._format_time(course.get('Time', ''))
+            venue = course.get('Venue', '')
+            
+            # Extract color and age group from course name
+            # e.g., "Blue (ages 4-6) Saturdays @ Dulwich Park (8 weeks)"
+            if '(' in course_name and ')' in course_name:
+                # Find the first part before the day/venue info
+                parts = course_name.split(' ')
+                color_age_parts = []
+                
+                for i, part in enumerate(parts):
+                    if part.lower() in ['saturdays', 'sundays', 'mondays', 'tuesdays', 'wednesdays', 'thursdays', 'fridays', '@']:
+                        break
+                    color_age_parts.append(part)
+                
+                color_age = ' '.join(color_age_parts)
+                
+                # Format: "Blue (ages 4-6) Saturday 8.45am @ Dulwich Park"
+                return f"{color_age} {day} {time} @ {venue}"
+            
+            # Fallback to original name if parsing fails
+            return course_name
+        except:
+            return course.get('Name', '')
     
     def generate_newsletter_html(self, blocks: List[str], subject: str = None, llm_helper: LLMHelper = None, custom_summary: str = None) -> str:
         """Combine all blocks into a complete newsletter HTML"""
