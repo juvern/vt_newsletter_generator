@@ -9,9 +9,9 @@ class HTMLGenerator:
     # Class constants
     SKILL_LEVELS = {
         'Beginner': 1,
-        'Improver': 4,
+        'Improver': 8,
         'Intermediate': 2,
-        'Advanced': 3
+        'Advanced': 4
     }
     
     JUNIOR_COLORS = {
