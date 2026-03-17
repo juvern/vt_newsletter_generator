@@ -222,14 +222,15 @@ class HTMLGenerator:
             return "2025-08-03T00:00:00.000Z"  # Fallback date
         
         try:
-            # Get the earliest start date
-            earliest_date = courses_df['Start Date'].min()
-            
-            # Parse the date and format for URL
-            if '/' in str(earliest_date):
-                date_obj = datetime.strptime(str(earliest_date), '%d/%m/%Y')
-            else:
-                date_obj = datetime.strptime(str(earliest_date), '%Y-%m-%d')
+            # Parse dates properly before finding the minimum
+            def parse_date(d):
+                s = str(d)
+                if '/' in s:
+                    return datetime.strptime(s, '%d/%m/%Y')
+                return datetime.strptime(s, '%Y-%m-%d')
+
+            parsed_dates = courses_df['Start Date'].apply(parse_date)
+            date_obj = parsed_dates.min()
             
             # Format as ISO string for URL
             return date_obj.strftime('%Y-%m-%dT00:00:00.000Z')
