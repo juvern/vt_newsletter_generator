@@ -130,17 +130,17 @@ class LLMHelper:
         print("=== END TEST ===")
         return extracted
     
-    def _make_llm_call(self, prompt: str, max_tokens: int = None) -> str:
+    def _make_llm_call(self, prompt: str, max_tokens: int = None, temperature_override: float = None) -> str:
         """Make a call to the LLM API with error handling and cleaning"""
         if not self.api_key or not self.client:
             return ""
-        
+
         try:
             response = self.client.chat.completions.create(
                 model=self.MODEL,
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=max_tokens or self.MAX_TOKENS,
-                temperature=self.TEMPERATURE
+                temperature=temperature_override if temperature_override is not None else self.TEMPERATURE
             )
             
             # Clean the response to remove quotes, numbering, etc.
@@ -155,64 +155,69 @@ class LLMHelper:
             print(f"Error making LLM call: {e}")
             return ""
     
-    def generate_subject_line(self, content_types: List[str] = None, course_count: int = None, html_content: str = None) -> str:
-        """Generate subject line for the newsletter from content types or HTML content"""
-        # Check for API key first
+    def generate_subject_line(self, content_summary: str = None) -> str:
+        """Generate subject line for the newsletter from a structured content summary"""
         if not self.api_key:
-            print("No API key available, using fallback subject line")
             return self.FALLBACK_SUBJECT_LINE
-    
-        text_content = self._extract_text_from_html(html_content)
-        
-        prompt = f"""        
-        Generate a subject line for a friendly community tennis newsletter in Belair and Dulwich in South East London.
 
-        User provided this content: {text_content}
-        Tone: upbeat, clear, slightly playful but not cheesy  
-        Audience: casual tennis players, families with kids  
+        prompt = f"""
+        Write a subject line for a community tennis newsletter from Vamos Tennis in Belair and Dulwich, South East London.
 
-        Examples:
-        - 🎾 Book Your Spot: Junior Courses Start Next Week
-        - ☀️ Still time to join! Adult courses, junior camps & tournament
-        - 🔥 What's New This June: Sunday Drop-Ins and Doubles Tournament
-        - 🎾 Adults & Juniors: New Courses Now Open for Booking
-        - ☀️ Summer Tennis is Here — Courses, Camps & More
-        - 📅 August Courses Now Open — Find Your Level
-        - 🎒 Tennis Camps for Ages 4–11 — Saturdays at Dulwich Park
-            
-        Return only the subject line, without quotes or numbering:
+        Newsletter contents:
+        {content_summary}
+
+        Rules:
+        - Be specific to the actual content above — mention the real things on offer
+        - Tone: clear and direct, lightly warm — not hyped, not cheesy
+        - One emoji max, at the start
+        - No exclamation marks unless it's genuinely warranted
+        - Under 60 characters
+
+        Good examples (notice they reference real content, not vague phrases):
+        - 🎾 Adult courses & junior camps open for booking
+        - 📅 New courses + July tournament — book your spot
+        - 🎾 Beginner to Advanced: courses now open at Dulwich & Belair
+
+        Bad examples (too vague or cheesy — avoid these):
+        - Summer Tennis is Here — Courses, Camps & More
+        - Tennis in the sun? We've got you covered
+        - 🔥 What's New This Month
+
+        Return only the subject line:
         """
-        
-        return self._make_llm_call(prompt, max_tokens=100)
+
+        return self._make_llm_call(prompt, max_tokens=60, temperature_override=0.4)
     
-    def generate_preview_text(self, content_types: List[str] = None, course_count: int = None, html_content: str = None) -> str:
-        """Generate preview text for email from content types or HTML content"""
+    def generate_preview_text(self, content_summary: str = None) -> str:
+        """Generate preview text for email from a structured content summary"""
         if not self.api_key:
             return self.FALLBACK_PREVIEW_TEXT
-        
-        text_content = self._extract_text_from_html(html_content)
-        
-        prompt = f"""
-        Write a single preview text for a community tennis newsletter.
 
-        Requirements:
-        - Keep under 150 characters
-        - Audience: families and adults interested in local tennis.  
-        - Tone: warm, informative, lightly enthusiastic.  
-        - Highlight the following: {text_content}
-        - Make it sound inviting, like a friendly tip from someone in the know.
-        - Return only ONE preview text, not multiple options
-        
-        Examples:
-        - Wimbledon's heating up — and so are our courses, junior holiday camps, and a social doubles tournament
+        prompt = f"""
+        Write a preview text (shown in email inboxes before opening) for a community tennis newsletter.
+
+        Newsletter contents:
+        {content_summary}
+
+        Rules:
+        - Under 150 characters
+        - Reference the actual content — don't be vague
+        - Tone: conversational, like a quick heads-up from a friend
+        - No emoji
+        - No exclamation marks
+
+        Good examples:
+        - Adult and junior courses now open — plus a social doubles tournament on 19 July at Belair Park
+        - Beginner to Advanced courses at Dulwich and Belair, with junior camps starting next month
+
+        Bad examples (too vague):
         - New courses and fun events this July
-        - Summer tennis is here — join a course, camp or tournament 
-        - Tennis in the sun? We've got courses, camps & tournaments waiting
+        - Summer tennis is here — join a course, camp or tournament
 
         Return only the preview text:
         """
-        
-        return self._make_llm_call(prompt, max_tokens=100)
+
+        return self._make_llm_call(prompt, max_tokens=80, temperature_override=0.4)
     
     def generate_block_description(self, content_type: str) -> str:
         """Generate description for content blocks using LLM with fallback"""
@@ -295,29 +300,33 @@ class LLMHelper:
         return self._make_llm_call(prompt, max_tokens=150)
         
     
-    def generate_newsletter_summary(self, content_types: List[str] = None, html_content: str = None) -> str:
-        """Generate newsletter summary from content types or HTML content"""
+    def generate_newsletter_summary(self, content_summary: str = None) -> str:
+        """Generate newsletter intro paragraph from a structured content summary"""
         if not self.api_key:
             return self.FALLBACK_NEWSLETTER_SUMMARY
-        
-        if html_content:
-            text_content = self._extract_text_from_html(html_content)
-            prompt = f"""
-            Write a short introductory paragraph (max 2 lines) for a friendly tennis newsletter.
 
-            Audience: local players and parents in South London  
-            Tone: welcoming, friendly, lightly seasonal  
-            Newsletter includes: {text_content}
+        prompt = f"""
+        Write a short intro paragraph (1–2 sentences) for a community tennis newsletter from Vamos Tennis in South London.
 
-            Mention Wimbledon, other grand slam tournaments or the weather if it's relevant. Avoid emojis at the start, but 1 is fine elsewhere. Make it sound like a friendly coach giving you a quick update.
+        Newsletter contents:
+        {content_summary}
 
-            Example:
-            - Wimbledon's heating up — and so are our courses, junior holiday camps, and a social doubles tournament
-            - New courses and fun events this July
-            - Summer tennis is here — join a course, camp or tournament 
-            - Tennis in the sun? We've got courses, camps & tournaments waiting
-            
-            Return only the summary:
-            """
-        
-        return self._make_llm_call(prompt, max_tokens=150)
+        Rules:
+        - Name the specific things on offer — don't be vague
+        - Tone: like a friendly coach giving a quick roundup, not a marketing email
+        - If there's a named event (e.g. a tournament or camp), mention it by name
+        - One emoji is fine, but not at the very start
+        - No exclamation marks
+
+        Good examples:
+        - Courses are back across Dulwich and Belair this month, with sessions from Beginner to Advanced — plus a social doubles tournament on 19 July.
+        - We've got adult courses starting this week and junior holiday camps running every Saturday from late July. There's also a social tournament coming up if you fancy some match play.
+
+        Bad examples:
+        - Summer tennis is here — join a course, camp or tournament
+        - Check out what's coming up this month — from new tennis courses to help you improve your game
+
+        Return only the intro paragraph:
+        """
+
+        return self._make_llm_call(prompt, max_tokens=120, temperature_override=0.4)

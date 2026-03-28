@@ -63,10 +63,10 @@ class HTMLGenerator:
         else:
             return f'<li>{day} {time} — {duration} starting {start_date}{limited_spots}{full_spots}</li>'
     
-    def _generate_course_list(self, courses: pd.DataFrame, group_by: str = None, include_venue: bool = True) -> List[str]:
+    def _generate_course_list(self, courses: pd.DataFrame, group_by: str = None, include_venue: bool = True, custom_blurbs: dict = None) -> List[str]:
         """Generate HTML list items for courses with optional grouping"""
         html_parts = []
-        
+
         if group_by:
             if group_by == 'Skill Level':
                 # Sort by predefined skill level order
@@ -75,15 +75,19 @@ class HTMLGenerator:
                 for group_name, group_courses in grouped:
                     if group_name != 'Unknown':
                         sorted_groups.append((group_name, group_courses))
-                
+
                 # Sort groups according to skill level order
                 sorted_groups.sort(key=lambda x: self.SKILL_LEVEL_ORDER.index(x[0]) if x[0] in self.SKILL_LEVEL_ORDER else 999)
-                
+
                 for group_name, group_courses in sorted_groups:
                     html_parts.append(f'<h3>{group_name}</h3>')
-                    
-                    # Add level description (LLM helper handles its own fallback)
-                    if self.llm_helper:
+
+                    # Use custom blurb if provided, otherwise try LLM
+                    if custom_blurbs and group_name in custom_blurbs:
+                        level_description = custom_blurbs[group_name]
+                        if level_description:
+                            html_parts.append(f'<p>{level_description}</p>')
+                    elif self.llm_helper:
                         try:
                             level_description = self.llm_helper.generate_level_description(group_name)
                             if level_description:
@@ -118,7 +122,7 @@ class HTMLGenerator:
         
         return html_parts
     
-    def generate_course_block(self, courses: pd.DataFrame, block_type: str = 'adults') -> str:
+    def generate_course_block(self, courses: pd.DataFrame, block_type: str = 'adults', custom_blurbs: dict = None) -> str:
         """Generate HTML block for courses with flexible configuration"""
         if courses.empty:
             return ""
@@ -147,9 +151,10 @@ class HTMLGenerator:
         # Generate course list (skip for juniors to avoid duplication)
         if block_type != 'juniors':
             html_parts.extend(self._generate_course_list(
-                courses, 
-                group_by=config['group_by'], 
-                include_venue=config['include_venue']
+                courses,
+                group_by=config['group_by'],
+                include_venue=config['include_venue'],
+                custom_blurbs=custom_blurbs
             ))
         
         # Add booking button for junior courses

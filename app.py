@@ -9,6 +9,7 @@ from url_generator import ClubSparkURLGenerator
 # from auth import check_password
 
 import json
+import requests
 from typing import List, Dict, Any
 
 # Page config
@@ -103,10 +104,10 @@ def app_flow(csv_processor, url_generator, html_generator, llm_helper):
     
     # Events Section
     st.subheader("🏆 Events")
-    st.markdown("Add up to 3 events (optional):")
-    
+    st.markdown("Add up to 5 events (optional):")
+
     events = []
-    for i in range(3):
+    for i in range(5):
         with st.expander(f"Event {i+1}", expanded=(i==0)):
             st.markdown("**Event Details:**")
             st.markdown("*Examples you can copy and paste:*")
@@ -157,17 +158,19 @@ def app_flow(csv_processor, url_generator, html_generator, llm_helper):
     if events:
         st.success(f"✅ Added {len(events)} events")
     
-    # Step 2: Content Order (only show if courses are loaded)
-    if courses_df is not None:
+    # Step 2: Content Order (show if courses or events are available)
+    if courses_df is not None or events:
         st.header("📝 Step 2: Content Order")
-        
+
         # Initialize content order in session state if not exists
         if 'content_order' not in st.session_state:
-            # Create default order
-            default_order = ['adults']
-            for content_type in available_content_types:
-                if content_type != 'adults':
-                    default_order.append(content_type)
+            # Create default order — only include course types if CSV was uploaded
+            default_order = []
+            if courses_df is not None:
+                default_order.append('adults')
+                for content_type in available_content_types:
+                    if content_type != 'adults':
+                        default_order.append(content_type)
             
             # Add events to order
             for event in events:
@@ -199,17 +202,15 @@ def app_flow(csv_processor, url_generator, html_generator, llm_helper):
         
         # Create a copy of the order for manipulation
         current_order = st.session_state.content_order.copy()
-        
+
         for i, content_type in enumerate(current_order):
-            col1, col2, col3 = st.columns([0.1, 0.7, 0.2])
-            
+            col1, col2, col3 = st.columns([0.1, 0.75, 0.15])
+
             with col1:
                 st.write(f"{i+1}.")
-            
+
             with col2:
                 if content_type.startswith('event_'):
-                    event_id = content_type.replace('event_', '')
-                    # Find the actual event title from the events list
                     event_title = "Event"
                     for event in events:
                         if event['id'] == content_type:
@@ -218,14 +219,14 @@ def app_flow(csv_processor, url_generator, html_generator, llm_helper):
                     st.write(f"🏆 {event_title}")
                 else:
                     st.write(f"🎾 {content_type.title()} Courses")
-            
+
             with col3:
                 if st.button("Move Up", key=f"up_{i}", disabled=(i==0)):
                     if i > 0:
                         current_order[i], current_order[i-1] = current_order[i-1], current_order[i]
                         st.session_state.content_order = current_order
                         st.rerun()
-                
+
                 if st.button("Move Down", key=f"down_{i}", disabled=(i==len(current_order)-1)):
                     if i < len(current_order) - 1:
                         current_order[i], current_order[i+1] = current_order[i+1], current_order[i]
@@ -234,79 +235,108 @@ def app_flow(csv_processor, url_generator, html_generator, llm_helper):
         
         # Update content_order for use in generation
         content_order = st.session_state.content_order
-        
-        # Step 3: Generate Newsletter HTML
-        st.header("📄 Step 3: Generate Newsletter HTML")
-        
-        # Generate newsletter button
-        if st.button("🎯 Generate Newsletter HTML", type="primary"):
-            with st.spinner("Generating newsletter HTML..."):
-                
-                # Generate HTML blocks
-                html_blocks = []
-                
-                # Debug: Show what we're working with
-                st.info(f"📋 Content order: {content_order}")
-                st.info(f"📋 Available events: {[e['id'] for e in events]}")
-                
-                try:
-                    for content_type in content_order:
-                        if content_type.startswith('event_'):
-                            # Handle individual event
-                            event = next((e for e in events if e['id'] == content_type), None)
-                            if event:
-                                event_html = generate_single_event_html(event, llm_helper)
-                                if event_html:
-                                    html_blocks.append(event_html)
-                                else:
-                                    st.warning(f"⚠️ Failed to generate HTML for event {content_type}")
-                            else:
-                                st.warning(f"⚠️ Event {content_type} not found in events list")
-                        else:
-                            # Generate course blocks
-                            courses = courses_df[courses_df['Type'].str.lower() == content_type.rstrip('s')]
-                            if not courses.empty:
-                                course_html = html_generator.generate_course_block(courses, content_type)
-                                if course_html:
-                                    html_blocks.append(course_html)
-                                else:
-                                    st.warning(f"⚠️ Failed to generate HTML for course type {content_type}")
-                            else:
-                                st.warning(f"⚠️ No courses found for type {content_type}")
-                    
-                    # Combine into final newsletter HTML (without summary for now)
-                    newsletter_html = html_generator.generate_newsletter_html(
-                        html_blocks, 
-                        subject=None,  # No subject yet
-                        llm_helper=None,  # Don't auto-generate summary
-                        custom_summary=None  # No summary yet
-                    )
-                    
-                    if not newsletter_html:
-                        raise ValueError("Failed to generate newsletter HTML")
-                        
-                except Exception as e:
-                    st.error(f"❌ Error generating newsletter HTML: {str(e)}")
-                    return
-                
-                # Store the HTML in session state
-                st.session_state.newsletter_html = newsletter_html
-                st.session_state.html_blocks = html_blocks  # Store the blocks too
-                st.session_state.html_generated = True
-                st.success("✅ Newsletter HTML generated successfully!")
+
+        # Step 3: Generate Blurbs
+        st.header("✏️ Step 3: Generate Blurbs")
+
+        if st.button("🎯 Generate Blurbs", type="primary"):
+            with st.spinner("Generating blurbs..."):
+                captured_blurbs = {}
+                for content_type in content_order:
+                    if content_type.startswith('event_'):
+                        event = next((e for e in events if e['id'] == content_type), None)
+                        if event and llm_helper:
+                            try:
+                                captured_blurbs[content_type] = llm_helper.generate_event_description({'description': event.get('description', '')}) or ""
+                            except Exception:
+                                captured_blurbs[content_type] = ""
+                        elif event:
+                            captured_blurbs[content_type] = ""
+                    elif content_type == 'adults' and courses_df is not None and llm_helper:
+                        courses = courses_df[courses_df['Type'].str.lower() == 'adult']
+                        for skill_level in courses['Skill Level'].dropna().unique():
+                            if skill_level != 'Unknown':
+                                try:
+                                    captured_blurbs[f'adults_{skill_level}'] = llm_helper.generate_level_description(skill_level) or ""
+                                except Exception:
+                                    captured_blurbs[f'adults_{skill_level}'] = ""
+                # Clear blurb widget state so text areas show fresh values
+                for k in list(st.session_state.keys()):
+                    if k.startswith('blurb_'):
+                        del st.session_state[k]
+                st.session_state.blurbs = captured_blurbs
+                st.session_state.blurbs_generated = True
+                st.session_state.html_generated = False
                 st.rerun()
-        
-        # Show HTML preview if generated
+
+        if st.session_state.get('blurbs_generated') and st.session_state.get('blurbs'):
+            st.success("✅ Blurbs generated — edit them below, then generate the HTML.")
+            blurbs = st.session_state.blurbs
+            # Display blurbs in the same order they appear in the HTML
+            for content_type in content_order:
+                if content_type.startswith('event_'):
+                    if content_type in blurbs:
+                        event = next((e for e in events if e['id'] == content_type), None)
+                        label = event['title'] if event else content_type
+                        st.text_area(f"📋 {label}", value=blurbs[content_type], key=f"blurb_{content_type}", height=100)
+                elif content_type == 'adults':
+                    for skill_level in html_generator.SKILL_LEVEL_ORDER:
+                        key = f'adults_{skill_level}'
+                        if key in blurbs:
+                            st.text_area(f"🎾 Adult — {skill_level}", value=blurbs[key], key=f"blurb_{key}", height=80)
+
+        # Step 4: Generate Newsletter HTML (only after blurbs are ready)
+        if st.session_state.get('blurbs_generated'):
+            st.header("📄 Step 4: Generate Newsletter HTML")
+
+            if st.button("🎯 Generate Newsletter HTML", type="primary"):
+                with st.spinner("Generating newsletter HTML..."):
+                    html_blocks = []
+                    # Read current text area values (edited by user) from session state
+                    blurbs = st.session_state.get('blurbs', {})
+                    current_blurbs = {k: st.session_state.get(f'blurb_{k}', v) for k, v in blurbs.items()}
+
+                    try:
+                        for content_type in content_order:
+                            if content_type.startswith('event_'):
+                                event = next((e for e in events if e['id'] == content_type), None)
+                                if event:
+                                    blurb = current_blurbs.get(content_type, "")
+                                    event_html = generate_single_event_html(event, custom_blurb=blurb)
+                                    if event_html:
+                                        html_blocks.append(event_html)
+                            else:
+                                if courses_df is None:
+                                    continue
+                                courses = courses_df[courses_df['Type'].str.lower() == content_type.rstrip('s')]
+                                if not courses.empty:
+                                    block_blurbs = {k.replace('adults_', ''): v for k, v in current_blurbs.items() if k.startswith(f'{content_type}_')}
+                                    course_html = html_generator.generate_course_block(courses, content_type, custom_blurbs=block_blurbs or None)
+                                    if course_html:
+                                        html_blocks.append(course_html)
+
+                        newsletter_html = html_generator.generate_newsletter_html(html_blocks, subject=None, llm_helper=None, custom_summary=None)
+                        if not newsletter_html:
+                            raise ValueError("Failed to generate newsletter HTML")
+
+                    except Exception as e:
+                        st.error(f"❌ Error generating newsletter HTML: {str(e)}")
+                        return
+
+                    st.session_state.newsletter_html = newsletter_html
+                    st.session_state.html_blocks = html_blocks
+                    st.session_state.html_generated = True
+                    st.success("✅ Newsletter HTML generated!")
+                    st.rerun()
+
         if st.session_state.get('html_generated', False):
-            st.subheader("📄 Newsletter HTML Preview")
-            st.markdown("**Preview of the generated newsletter HTML:**")
+            st.subheader("📄 Newsletter Preview")
             st.components.v1.html(st.session_state.newsletter_html, height=600, scrolling=True)
-        
-        # Step 4: Generate Subject, Preview & Summary (only if HTML is generated)
+
+        # Step 5: Generate Subject, Preview & Summary (only if HTML is generated)
         if st.session_state.get('html_generated', False):
-            st.header("✏️ Step 4: Generate Subject, Preview & Summary")
-            
-            # Initialize session state for generated content
+            st.header("✏️ Step 5: Generate Subject, Preview & Summary")
+
             if 'subject_lines' not in st.session_state:
                 st.session_state.subject_lines = ""
             if 'preview_text' not in st.session_state:
@@ -315,25 +345,30 @@ def app_flow(csv_processor, url_generator, html_generator, llm_helper):
                 st.session_state.newsletter_summary = ""
             if 'content_generated' not in st.session_state:
                 st.session_state.content_generated = False
-            
-            # Button to generate subject, preview text, and newsletter summary
+
             if st.button("🎯 Generate Subject, Preview & Summary", type="primary"):
                 with st.spinner("Generating subject, preview text, and newsletter summary..."):
-                    # Get the stored HTML content
-                    newsletter_html = st.session_state.newsletter_html
-                    
-                    # Generate from the full HTML content
+                    # Build a structured content summary — specific enough for good copy, no raw timings
+                    summary_lines = []
+                    for content_type in content_order:
+                        if content_type.startswith('event_'):
+                            event = next((e for e in events if e['id'] == content_type), None)
+                            if event:
+                                summary_lines.append(f"Event: {event['title']} — {event.get('description', '').split('.')[0]}")
+                        elif content_type == 'adults' and courses_df is not None:
+                            courses = courses_df[courses_df['Type'].str.lower() == 'adult']
+                            levels = [lvl for lvl in html_generator.SKILL_LEVEL_ORDER if lvl in courses['Skill Level'].values]
+                            if levels:
+                                summary_lines.append(f"Adult courses: {', '.join(levels)}")
+                        elif content_type == 'juniors' and courses_df is not None:
+                            summary_lines.append("Junior courses available")
+                    content_summary = "\n".join(summary_lines)
+
                     try:
-                        # Debug: Show what content we're working with
-                        debug_text = llm_helper.debug_extract_text(newsletter_html)
-                        st.info(f"📋 Debug: Extracted text length: {len(debug_text)} characters")
-                        st.info(f"📋 Debug: First 300 chars: {debug_text[:300]}...")
-                        
-                        # Ensure all methods return strings, not None
-                        subject = llm_helper.generate_subject_line(html_content=newsletter_html)
-                        preview = llm_helper.generate_preview_text(html_content=newsletter_html)
-                        summary = llm_helper.generate_newsletter_summary(html_content=newsletter_html)
-                        
+                        subject = llm_helper.generate_subject_line(content_summary=content_summary)
+                        preview = llm_helper.generate_preview_text(content_summary=content_summary)
+                        summary = llm_helper.generate_newsletter_summary(content_summary=content_summary)
+
                         st.session_state.subject_lines = subject if subject else "🎾 New Tennis Courses Available!"
                         st.session_state.preview_text = preview if preview else "New courses and fun events this month"
                         st.session_state.newsletter_summary = summary if summary else "Check out what's coming up this month — from new tennis courses to help you improve your game!"
@@ -342,20 +377,16 @@ def app_flow(csv_processor, url_generator, html_generator, llm_helper):
                         st.rerun()
                     except Exception as e:
                         st.error(f"❌ Error generating content: {str(e)}")
-                        # Set fallback values
                         st.session_state.subject_lines = "🎾 New Tennis Courses Available!"
                         st.session_state.preview_text = "New courses and fun events this month"
                         st.session_state.newsletter_summary = "Check out what's coming up this month — from new tennis courses to help you improve your game!"
                         st.session_state.content_generated = True
                         st.rerun()
-            
-            # Show info about regeneration
+
             if st.session_state.content_generated:
                 st.info("💡 Click the button above again to regenerate with different results")
-            
-            # Only show subject and preview if they've been generated
+
             if st.session_state.content_generated:
-                # Subject Line Selection
                 st.subheader("📧 Subject Line")
                 selected_subject = st.text_input(
                     "Subject line (you can edit this):",
@@ -363,8 +394,7 @@ def app_flow(csv_processor, url_generator, html_generator, llm_helper):
                     max_chars=100,
                     help="This is the email subject line"
                 )
-                
-                # Preview Text
+
                 st.subheader("📝 Preview Text")
                 edited_preview = st.text_area(
                     "Preview text (you can edit this):",
@@ -372,93 +402,99 @@ def app_flow(csv_processor, url_generator, html_generator, llm_helper):
                     max_chars=150,
                     help="This appears in email clients as a preview"
                 )
-                
-                # Newsletter Summary
+
                 st.subheader("📋 Newsletter Summary")
                 edited_summary = st.text_area(
                     "Newsletter summary (you can edit this):",
                     value=st.session_state.newsletter_summary,
-                    max_chars=300,
+                    max_chars=500,
                     help="This appears at the top of the newsletter as an introduction"
                 )
-                
-                # Step 5: Final Newsletter
-                st.header("📄 Step 5: Final Newsletter")
-                
-                # Generate final newsletter button
+
+                # Step 6: Final Newsletter
+                st.header("📄 Step 6: Final Newsletter")
+
                 if st.button("🎯 Generate Final Newsletter", type="primary"):
                     with st.spinner("Generating final newsletter..."):
-                        
-                        # Use the stored HTML blocks
-                        html_blocks = st.session_state.html_blocks
-                        
-                        # Add subject and summary to the existing HTML
                         final_newsletter_html = html_generator.generate_newsletter_html(
-                            html_blocks, 
-                            selected_subject, 
-                            llm_helper=None,  # Don't auto-generate summary
+                            st.session_state.html_blocks,
+                            selected_subject,
+                            llm_helper=None,
                             custom_summary=edited_summary if edited_summary.strip() else None
                         )
-                        
-                        # Create JSON output
-                        newsletter_json = {
+                        st.session_state.final_newsletter_json = {
                             "subject": selected_subject,
                             "content": final_newsletter_html,
                             "preview_text": edited_preview
                         }
-                        
-                        st.success("✅ Final newsletter generated successfully!")
-                        
-                        # Display results
-                        st.subheader("📋 Results")
-                        
-                        # Tabs for different outputs
-                        tab1, tab2 = st.tabs(["📄 Newsletter Preview", "📋 JSON Output"])
-                        
-                        with tab1:
-                            st.markdown("**Newsletter Preview:**")
-                            st.components.v1.html(final_newsletter_html, height=600, scrolling=True)
-                        
-                        with tab2:
-                            st.markdown("**Copy this JSON for Postman:**")
-                            json_str = json.dumps(newsletter_json, indent=2)
-                            st.code(json_str, language="json")
-                        
-                        # Contact list reminder
-                        st.subheader("📋 Next Steps")
-                        st.info("""
-                        📞 **Don't forget to import ClubSpark's contact list!**
-                        
-                        After copying the JSON to Postman, download the contact list from ClubSpark to import into Kit before sending. This ensures we're sending to all our members.
-                        """)
+                        st.session_state.final_generated = True
+                        st.rerun()
+
+                if st.session_state.get('final_generated'):
+                    newsletter_json = st.session_state.final_newsletter_json
+                    st.success("✅ Final newsletter generated successfully!")
+
+                    tab1, tab2 = st.tabs(["📄 Newsletter Preview", "📋 JSON Output"])
+                    with tab1:
+                        st.components.v1.html(newsletter_json["content"], height=600, scrolling=True)
+                    with tab2:
+                        st.code(json.dumps(newsletter_json, indent=2), language="json")
+
+                    st.subheader("📤 Send to Kit")
+                    st.info("This will create a **draft broadcast** in Kit. You can review and send it from the Kit dashboard.")
+                    if st.button("🚀 Send to Kit", type="primary"):
+                        kit_api_key = st.secrets.get("kit_api_key", "")
+                        if not kit_api_key:
+                            st.error("❌ Kit API key not found in secrets.toml")
+                        else:
+                            with st.spinner("Sending to Kit..."):
+                                try:
+                                    response = requests.post(
+                                        "https://api.convertkit.com/v4/broadcasts",
+                                        headers={
+                                            "Content-Type": "application/json",
+                                            "X-Kit-Api-Key": kit_api_key,
+                                        },
+                                        json=newsletter_json,
+                                        timeout=15,
+                                    )
+                                    if response.status_code in (200, 201):
+                                        st.success("✅ Broadcast created in Kit!")
+                                    else:
+                                        st.error(f"❌ Kit API error {response.status_code}: {response.text}")
+                                except Exception as e:
+                                    st.error(f"❌ Request failed: {str(e)}")
+
+                    st.subheader("📋 Next Steps")
+                    st.info("""
+                    📞 **Don't forget to import ClubSpark's contact list!**
+
+                    After sending to Kit, download the contact list from ClubSpark to import into Kit before sending. This ensures we're sending to all our members.
+                    """)
                         
     
     
     else:
-        st.info("📊 Upload your courses CSV to continue...")
+        st.info("📊 Add at least one event or upload a courses CSV to continue...")
 
-def generate_single_event_html(event: Dict, llm_helper: LLMHelper = None) -> str:
-    """Generate HTML for a single event with user description or LLM-generated description"""
+def generate_single_event_html(event: Dict, llm_helper: LLMHelper = None, custom_blurb: str = None) -> str:
+    """Generate HTML for a single event. Uses custom_blurb if provided, otherwise calls LLM."""
     event_title = event.get('title', 'Special Event')
     html_parts = [f'<div style="margin: 40px 0;">']
     html_parts.append(f'<h2>{event_title}</h2>')
-    
+
     if event.get('image'):
         html_parts.append(f'<img src="{event["image"]}" alt="{event_title}" style="width: 100%; max-width: 600px; margin: 10px auto; display: block;" />')
-    
-    # Always try LLM generation first, with user description as input
-    event_info = {
-        'description': event.get('description', '')  # Only pass the user description
-    }
-    
+
     description = ""
-    if llm_helper:
+    if custom_blurb is not None:
+        description = custom_blurb
+    elif llm_helper:
         try:
-            description = llm_helper.generate_event_description(event_info)
+            description = llm_helper.generate_event_description({'description': event.get('description', '')}) or ""
         except Exception as e:
             print(f"LLM event description failed: {e}")
-    
-    # Add description if we have one
+
     if description:
         html_parts.append(f'<p>{description}</p>')
     
