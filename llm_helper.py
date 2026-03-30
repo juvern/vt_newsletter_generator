@@ -202,6 +202,7 @@ class LLMHelper:
         Rules:
         - Under 150 characters
         - Reference the actual content — don't be vague
+        - Only mention specific dates if they are present in the newsletter contents above — do not invent them
         - Tone: conversational, like a quick heads-up from a friend
         - No emoji
         - No exclamation marks
@@ -237,7 +238,7 @@ class LLMHelper:
 
         Here is the block: {content_type}
 
-        Write just the introductory paragraph that should go **above the bullet list**. Mention timing or what’s new if relevant (e.g. “courses starting this Sunday” or “holiday camps now open”). Avoid sounding too salesy.
+        Write just the introductory paragraph that should go **above the bullet list**. Only mention specific dates or timing if they are clearly present in the provided content — do not invent them. Avoid sounding too salesy.
         """
         
         result = self._make_llm_call(prompt)
@@ -277,23 +278,24 @@ class LLMHelper:
             return self.FALLBACK_EVENT_DESCRIPTION.get(event_info.get('title', 'Event'))
         
         prompt = f"""
-            You are writing a short, friendly description of a for a block to be included in a community tennis newsletter.
-            
+            You are writing a short, friendly description for a block to be included in a community tennis newsletter.
+
             User provided this event description: {user_description}
-            
+
             User provided this event title: {user_title}
 
             Keep the key details but make it sound more inviting and natural.
-            
-            Style: max 3 sentences, with clear mention of date, time, and location  
+
+            Style: max 3 sentences
             Include: a short summary of the vibe or activity (e.g. social doubles, holiday camps, drop-ins)
-            Audience: adult recreational tennis players and parents of junior players in South London  
+            Only mention date, time, and location if they are explicitly provided above — do not invent or assume them.
+            Do not mention a venue name unless it is explicitly stated in the event info above.
+            Audience: adult recreational tennis players and parents of junior players in South London
             Tone: warm, clear, and lightly enthusiastic (not too salesy or overhyped). Limited emojis in the description
 
-            Example
-            - Celebrate the finals weekend with a casual mixed doubles session on Sunday, 14 July @ Belair Park, 3–5pm.
-            - Join us for a fun adult doubles tournament at Belair Park on Sunday, 14 July @ Belair Park, 3–5pm. Whether you're coming solo or with a partner, it's a great way to meet other players and enjoy some friendly matchplay in the sun.
-            
+            Example (only if date/location were provided in the input):
+            - Join us for a fun adult doubles tournament. Whether you're coming solo or with a partner, it's a great way to meet other players and enjoy some friendly matchplay in the sun.
+
             Return only the rewritten event description:
             """
             
@@ -315,6 +317,7 @@ class LLMHelper:
         - Name the specific things on offer — don't be vague
         - Tone: like a friendly coach giving a quick roundup, not a marketing email
         - If there's a named event (e.g. a tournament or camp), mention it by name
+        - Only mention specific dates if they are present in the newsletter contents above — do not invent them
         - One emoji is fine, but not at the very start
         - No exclamation marks
 
