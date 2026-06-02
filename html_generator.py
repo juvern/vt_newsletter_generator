@@ -15,10 +15,17 @@ class HTMLGenerator:
     }
     
     JUNIOR_COLORS = {
-        'Blue': '🔵 Blue (4–6) – New to tennis',
-        'Red': '🔴 Red (6–8) – Rallying, volleying, serving',
-        'Orange': '🟠 Orange (8–11) - Hitting from mid-court and learning tactics. Great for beginners and improvers.',
-        'Green': '🟢 Green (11–14) - Playing on full-size courts with standard balls. All levels welcome, with drills matched to ability.'
+        'Blue': '🔵 Blue (4–6)',
+        'Red': '🔴 Red (6–8)',
+        'Orange': '🟠 Orange (8–11)',
+        'Green': '🟢 Green (11–14)',
+    }
+
+    JUNIOR_COLOR_DESCRIPTIONS = {
+        'Blue': 'New to tennis.',
+        'Red': 'Rallying, volleying, serving.',
+        'Orange': 'Hitting from mid-court and learning tactics. Great for beginners and improvers.',
+        'Green': 'Playing on full-size courts with standard balls. All levels welcome, with drills matched to ability.',
     }
 
     JUNIOR_COLOR_ORDER = ['Blue', 'Red', 'Orange', 'Green']
@@ -174,10 +181,12 @@ class HTMLGenerator:
         """Generate junior sections grouped by color tier"""
         if courses is None or courses.empty:
             return [
-                '<p><strong>Age Groups:</strong></p>',
-                '<ul>',
-                *[f'<li>{description}</li>' for description in self.JUNIOR_COLORS.values()],
-                '</ul>'
+                item
+                for color in self.JUNIOR_COLOR_ORDER
+                for item in [
+                    f'<h3>{self.JUNIOR_COLORS[color]}</h3>',
+                    f'<p>{self.JUNIOR_COLOR_DESCRIPTIONS[color]}</p>',
+                ]
             ]
 
         # Group courses by color
@@ -193,6 +202,7 @@ class HTMLGenerator:
             if not group:
                 continue
             html_parts.append(f'<h3>{self.JUNIOR_COLORS[color]}</h3>')
+            html_parts.append(f'<p>{self.JUNIOR_COLOR_DESCRIPTIONS[color]}</p>')
             html_parts.append('<ul>')
             for course in group:
                 html_parts.append(self._format_course_item(course, include_venue=True))
@@ -201,10 +211,12 @@ class HTMLGenerator:
         # Fallback if no courses matched any color
         if not html_parts:
             return [
-                '<p><strong>Age Groups:</strong></p>',
-                '<ul>',
-                *[f'<li>{description}</li>' for description in self.JUNIOR_COLORS.values()],
-                '</ul>'
+                item
+                for color in self.JUNIOR_COLOR_ORDER
+                for item in [
+                    f'<h3>{self.JUNIOR_COLORS[color]}</h3>',
+                    f'<p>{self.JUNIOR_COLOR_DESCRIPTIONS[color]}</p>',
+                ]
             ]
 
         return html_parts
