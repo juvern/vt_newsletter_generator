@@ -93,6 +93,8 @@ class CSVProcessor:
             return 'Belair Park'
         elif 'dulwich' in name_lower:
             return 'Dulwich Park'
+        elif 'honor' in name_lower:
+            return 'Honor Oak'
         else:
             return 'Unknown Venue'
     

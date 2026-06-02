@@ -20,6 +20,8 @@ class HTMLGenerator:
         'Orange': '🟠 Orange (8–11) - Hitting from mid-court and learning tactics. Great for beginners and improvers.',
         'Green': '🟢 Green (11–14) - Playing on full-size courts with standard balls. All levels welcome, with drills matched to ability.'
     }
+
+    JUNIOR_COLOR_ORDER = ['Blue', 'Red', 'Orange', 'Green']
     
     SKILL_LEVEL_ORDER = ['Beginner', 'Improver', 'Intermediate', 'Advanced']
     
@@ -163,44 +165,49 @@ class HTMLGenerator:
         
         return '\n'.join(html_parts)
     
+    def _extract_junior_color(self, name: str) -> str:
+        """Extract color tier from junior course name (first word)"""
+        first_word = name.strip().split(' ')[0].capitalize()
+        return first_word if first_word in self.JUNIOR_COLORS else None
+
     def _generate_junior_explanation(self, courses: pd.DataFrame = None) -> List[str]:
-        """Generate junior age groups explanation using course names from CSV"""
+        """Generate junior sections grouped by color tier"""
         if courses is None or courses.empty:
-            # Fallback to static descriptions
             return [
                 '<p><strong>Age Groups:</strong></p>',
                 '<ul>',
                 *[f'<li>{description}</li>' for description in self.JUNIOR_COLORS.values()],
                 '</ul>'
             ]
-        
-        # Use formatted course names
-        course_names = []
+
+        # Group courses by color
+        color_groups = {color: [] for color in self.JUNIOR_COLOR_ORDER}
         for _, course in courses.iterrows():
-            formatted_name = self._format_junior_course_name(course)
-            if formatted_name:
-                course_names.append(formatted_name)
-        
-        if not course_names:
-            # Fallback to static descriptions
+            color = self._extract_junior_color(course.get('Name', ''))
+            if color and color in color_groups:
+                color_groups[color].append(course)
+
+        html_parts = []
+        for color in self.JUNIOR_COLOR_ORDER:
+            group = color_groups[color]
+            if not group:
+                continue
+            html_parts.append(f'<h3>{self.JUNIOR_COLORS[color]}</h3>')
+            html_parts.append('<ul>')
+            for course in group:
+                html_parts.append(self._format_course_item(course, include_venue=True))
+            html_parts.append('</ul>')
+
+        # Fallback if no courses matched any color
+        if not html_parts:
             return [
                 '<p><strong>Age Groups:</strong></p>',
                 '<ul>',
                 *[f'<li>{description}</li>' for description in self.JUNIOR_COLORS.values()],
                 '</ul>'
             ]
-        
-        # Return both course names and age group descriptions
-        return [
-            '<p><strong>Age Groups:</strong></p>',
-            '<ul>',
-            *[f'<li>{description}</li>' for description in self.JUNIOR_COLORS.values()],
-            '</ul>',
-            '<p><strong>Available Courses:</strong></p>',
-            '<ul>',
-            *[f'<li>{name}</li>' for name in course_names],
-            '</ul>'
-        ]
+
+        return html_parts
     
     def generate_events_block(self, courses: pd.DataFrame) -> str:
         """Generate HTML block for events and special sessions"""

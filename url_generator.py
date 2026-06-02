@@ -1,6 +1,17 @@
 from datetime import datetime, timedelta
 from urllib.parse import quote
 
+LOCATIONS = {
+    "honor_oak": "09210dea-3498-43d1-8483-29490e230247",
+    "belair_park": "e014e2b3-7f87-4fe0-9261-4a2b5ba0fa49",
+    "dulwich_park": "aae62282-2de2-4950-ac4a-0ea947476505",
+}
+
+AREAS = {
+    "dulwich": ["belair_park", "dulwich_park"],
+    "honor_oak": ["honor_oak"],
+}
+
 class ClubSparkURLGenerator:
     """Generates ClubSpark URLs for 6 weeks from today"""
     
