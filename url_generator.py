@@ -12,6 +12,10 @@ AREAS = {
     "honor_oak": ["honor_oak"],
 }
 
+PROGRAMME_CATEGORIES = {
+    "clinics": "bfc46cba-fed0-47a0-aea1-2f7aa643cb67",
+}
+
 class ClubSparkURLGenerator:
     """Generates ClubSpark URLs for 6 weeks from today"""
     
@@ -42,4 +46,11 @@ class ClubSparkURLGenerator:
         start_encoded = quote(start_str)
         end_encoded = quote(end_str)
         
-        return f"{self.base_url}/Coaching_Sessions?startdateforfiltering={start_encoded}&enddateforfiltering={end_encoded}&category=&status=Upcoming&leadcoachforfiltering=&venue=" 
+        return f"{self.base_url}/Coaching_Sessions?startdateforfiltering={start_encoded}&enddateforfiltering={end_encoded}&category=&status=Upcoming&leadcoachforfiltering=&venue="
+
+    def get_programme_category_url(self, category: str) -> str:
+        """Generate ClubSpark URL filtered to a specific programme category"""
+        programme_id = PROGRAMME_CATEGORIES[category]
+        programme_id_encoded = quote(programme_id)
+
+        return f"https://clubspark.lta.org.uk/VamosTennis/Coaching/Adult?programme-id%5B%5D={programme_id_encoded}"
